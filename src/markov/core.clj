@@ -5,13 +5,13 @@
   (->> (io/resource "nietzsche.txt")
     slurp))
 
-(defn split-with-delim 
-  ([delim text]
-    (split-with-delim (new java.util.StringTokenizer text delim true)))
-  ([tokenizer]
-    (if (.hasMoreTokens tokenizer)
-         (cons (.nextToken tokenizer)
-               (lazy-seq (split-with-delim tokenizer))))))
+(defn split-with-delim [delim text]
+  (let [tokenizer (new java.util.StringTokenizer text delim true)
+        next-token (fn next-token []
+                     (if (.hasMoreTokens tokenizer)
+                       (cons (.nextToken tokenizer)
+                             (lazy-seq (next-token)))))]
+      (next-token)))
 
 (defn incr [v]
   (if (number? v) (inc v) 1))
@@ -31,6 +31,19 @@
       (cons [[a b] c]
             (lazy-seq (triplets (cons b (cons c rest))))))))
 
+(defn ngrams [n tokens]
+  (let [candidates (take n tokens)]
+    (if (or
+          (not= (count candidates) n)
+          (nil? (last candidates)))
+      '()
+      (let [ntuple (take (- n 1) candidates)
+            next-token (last candidates)
+            rest (drop n tokens)]
+        (cons [ntuple next-token ]
+              (lazy-seq (ngrams n (cons (last ntuple) (cons next-token rest)))))))))
+      
+
 (defn insert-token [model token-pair]
   (let [[token next-token] token-pair]
     (update-in model [token next-token] incr)))
@@ -41,6 +54,7 @@
     (remove #(contains? #{" " "\r" "\n" "\t" "_" "-"} %))
     ;(pairs)
     (triplets)
+    ;(ngrams 4)
     (reduce insert-token {})))
 
 (defn get-next-tokens [model token]
@@ -63,16 +77,35 @@
 (defn find-next-token [model token]
   (->>
     (get-next-tokens model token)
-    (take-next-token (rand))))
+    (take-next-token (rand))
+    (vector)
+    (concat (rest token))
+    (vec)))
 
 (defn gen-text [model token length]
   (->>
       (iterate #(find-next-token model %) token)
+      (map first)
       (take length)
       (interpose " ")
+      (fix-sentences)
       (apply str)))
 
-(defn run [firstword]
-  (let [model (build-model corpus)]
-    (print (gen-text model firstword 100))))
+(defn fix-sentences [[a b & rest]]
+  (cond
+    (nil? a)
+      '()
+    (and (.equals " " a) (re-matches #"[.:,!?]" b))
+      (cons b (lazy-seq (fix-sentences rest)))
+    :else
+      (cons a (lazy-seq (fix-sentences (cons b rest))))))
+
+; (def model (build-model corpus))
+
+(defn run
+  ([] (let [model (build-model corpus)]
+        (run model)))
+  ([model]
+    (print (gen-text model (rand-nth (keys model)) 100))))
+  
 
