@@ -50,7 +50,7 @@
 
 (defn build-model [text]
   (->> text
-    (split-with-delim " ,.!?:;\r\n\t-_")
+    (split-with-delim " ,.!?:;\r\n\t-_(){}[]")
     (remove #(contains? #{" " "\r" "\n" "\t" "_" "-"} %))
     ;(pairs)
     (triplets)
