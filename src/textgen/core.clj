@@ -82,6 +82,17 @@
     (concat (rest token))
     (vec)))
 
+(defn fix-sentences [[a b & rest]]
+  (cond
+    (nil? a)
+      '()
+    (nil? b)
+      (list a)
+    (and (clojure.string/blank? a) (re-matches #"[.:,;!?\"']" b))
+      (cons b (lazy-seq (fix-sentences rest)))
+    :else
+      (cons a (lazy-seq (fix-sentences (cons b rest))))))
+
 (defn gen-text [model token length]
   (->>
       (iterate #(find-next-token model %) token)
@@ -90,15 +101,6 @@
       (interpose " ")
       (fix-sentences)
       (apply str)))
-
-(defn fix-sentences [[a b & rest]]
-  (cond
-    (nil? a)
-      '()
-    (and (.equals " " a) (re-matches #"[.:,!?]" b))
-      (cons b (lazy-seq (fix-sentences rest)))
-    :else
-      (cons a (lazy-seq (fix-sentences (cons b rest))))))
 
 ; (def model (build-model corpus))
 
